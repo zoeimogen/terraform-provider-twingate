@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/hasura/go-graphql-client"
 	"github.com/stretchr/testify/assert"
 )
@@ -2418,16 +2418,18 @@ func TestUpdateResourceRemoveGroups_IsEmpty(t *testing.T) {
 
 func TestReadResource_ToModel(t *testing.T) {
 	cases := []struct {
-		name     string
-		query    ReadResource
-		expected *model.Resource
+		name          string
+		query         ReadResource
+		expected      *model.Resource
+		expectedError error
 	}{
 		{
 			name: "Resource is nil",
 			query: ReadResource{
 				Resource: nil,
 			},
-			expected: nil,
+			expected:      nil,
+			expectedError: nil,
 		},
 		{
 			name: "Resource with no access edges",
@@ -2461,6 +2463,7 @@ func TestReadResource_ToModel(t *testing.T) {
 				IsVisible:                optionalBool(false),
 				IsBrowserShortcutEnabled: optionalBool(false),
 			},
+			expectedError: nil,
 		},
 		{
 			name: "Resource with multiple access edges",
@@ -2492,20 +2495,27 @@ func TestReadResource_ToModel(t *testing.T) {
 							Edges: []*AccessEdge{
 								{
 									Node: Principal{
+										Group: Node{
+											ID: "group123",
+										},
 										Type: "Group",
-										Node: Node{ID: "group123"},
 									},
 									SecurityPolicy: &gqlSecurityPolicy{
 										IDName{
 											ID: "policy789",
 										},
 									},
-									UsageBasedAutolockDurationDays: optionalInt64(30),
+									AccessPolicy: &AccessPolicy{
+										Mode:            AccessMode(model.ApprovalModeManual),
+										DurationSeconds: optionalInt64(2592000),
+									},
 								},
 								{
 									Node: Principal{
+										ServiceAccount: Node{
+											ID: "serviceAccount456",
+										},
 										Type: "ServiceAccount",
-										Node: Node{ID: "serviceAccount456"},
 									},
 								},
 							},
@@ -2519,9 +2529,12 @@ func TestReadResource_ToModel(t *testing.T) {
 				SecurityPolicyID: optionalString("policy123"),
 				GroupsAccess: []model.AccessGroup{
 					{
-						GroupID:            "group123",
-						SecurityPolicyID:   optionalString("policy789"),
-						UsageBasedDuration: optionalInt64(30),
+						GroupID:          "group123",
+						SecurityPolicyID: optionalString("policy789"),
+						AccessPolicy: &model.AccessPolicy{
+							Mode:     optionalString(model.ApprovalModeManual),
+							Duration: optionalString("30d"),
+						},
 					},
 				},
 				ServiceAccounts: []string{"serviceAccount456"},
@@ -2541,13 +2554,58 @@ func TestReadResource_ToModel(t *testing.T) {
 				IsVisible:                optionalBool(false),
 				IsBrowserShortcutEnabled: optionalBool(false),
 			},
+			expectedError: nil,
+		},
+		{
+			name: "Resource with broken access edges - no group_id",
+			query: ReadResource{
+				Resource: &gqlResource{
+					ResourceNode: ResourceNode{},
+					Access: Access{
+						PaginatedResource: PaginatedResource[*AccessEdge]{
+							Edges: []*AccessEdge{
+								{
+									Node: Principal{
+										Type: "Group",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: ErrMissingAccessGroupID,
+		},
+		{
+			name: "Resource with broken access edges - no service_account_id",
+			query: ReadResource{
+				Resource: &gqlResource{
+					ResourceNode: ResourceNode{},
+					Access: Access{
+						PaginatedResource: PaginatedResource[*AccessEdge]{
+							Edges: []*AccessEdge{
+								{
+									Node: Principal{
+										Type: "ServiceAccount",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: ErrMissingAccessServiceAccountID,
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if !c.query.IsEmpty() {
-				assert.Equal(t, c.expected, c.query.Resource.ToModel())
+				res, err := c.query.Resource.ToModel()
+				assert.ErrorIs(t, err, c.expectedError)
+				assert.Equal(t, c.expected, res)
 			}
 		})
 	}
@@ -2903,7 +2961,9 @@ func TestReadFullResources_ToModel(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			assert.Equal(t, c.expected, c.query.ToModel())
+			res, err := c.query.ToModel()
+			assert.NoError(t, err)
+			assert.Equal(t, c.expected, res)
 		})
 	}
 }
@@ -3957,6 +4017,589 @@ func TestReadUsers_IsEmpty(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			assert.Equal(t, c.expected, c.read.ToModel())
 			assert.Equal(t, c.expectedEmpty, c.read.IsEmpty())
+		})
+	}
+}
+
+func TestDeleteX509CertificateAuthorityQuery(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    DeleteX509CertificateAuthority
+		expected bool
+	}{
+		{
+			name:     "Empty query - IsEmpty always false",
+			query:    DeleteX509CertificateAuthority{},
+			expected: false,
+		},
+		{
+			name: "Ok true - IsEmpty always false",
+			query: DeleteX509CertificateAuthority{
+				OkError: OkError{Ok: true},
+			},
+			expected: false,
+		},
+		{
+			name: "Ok false with error - IsEmpty always false",
+			query: DeleteX509CertificateAuthority{
+				OkError: OkError{Ok: false, Error: "not found"},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestCreateX509CertificateAuthorityQueryIsEmpty(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    CreateX509CertificateAuthority
+		expected bool
+	}{
+		{
+			name:     "Nil entity - IsEmpty true",
+			query:    CreateX509CertificateAuthority{},
+			expected: true,
+		},
+		{
+			name: "Non-nil entity - IsEmpty false",
+			query: CreateX509CertificateAuthority{
+				X509CertificateAuthorityEntityResponse: X509CertificateAuthorityEntityResponse{
+					Entity: &certificateAuthority{
+						ID:          "ca-id",
+						Name:        "ca-name",
+						Fingerprint: "ca-fingerprint",
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestCreateX509CertificateAuthorityQueryToModel(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    CreateX509CertificateAuthority
+		expected *model.CertificateAuthority
+	}{
+		{
+			name:     "Nil entity - returns nil",
+			query:    CreateX509CertificateAuthority{},
+			expected: nil,
+		},
+		{
+			name: "Non-nil entity - returns model",
+			query: CreateX509CertificateAuthority{
+				X509CertificateAuthorityEntityResponse: X509CertificateAuthorityEntityResponse{
+					Entity: &certificateAuthority{
+						ID:          "ca-id",
+						Name:        "ca-name",
+						Fingerprint: "ca-fingerprint",
+					},
+				},
+			},
+			expected: &model.CertificateAuthority{
+				ID:          "ca-id",
+				Name:        "ca-name",
+				Fingerprint: "ca-fingerprint",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.ToModel())
+		})
+	}
+}
+
+func TestReadX509CertificateAuthorityQueryIsEmpty(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    ReadX509CertificateAuthority
+		expected bool
+	}{
+		{
+			name:     "Nil certificate authority - IsEmpty true",
+			query:    ReadX509CertificateAuthority{},
+			expected: true,
+		},
+		{
+			name: "Non-nil certificate authority - IsEmpty false",
+			query: ReadX509CertificateAuthority{
+				CertificateAuthority: &certificateAuthorityNode{
+					Type: "X509CertificateAuthority",
+					X509CertificateAuthority: certificateAuthority{
+						ID:          "ca-id",
+						Name:        "ca-name",
+						Fingerprint: "ca-fingerprint",
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestReadX509CertificateAuthorityQueryToModel(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    ReadX509CertificateAuthority
+		expected *model.CertificateAuthority
+	}{
+		{
+			name:     "Nil certificate authority - returns nil",
+			query:    ReadX509CertificateAuthority{},
+			expected: nil,
+		},
+		{
+			name: "Wrong type - returns nil",
+			query: ReadX509CertificateAuthority{
+				CertificateAuthority: &certificateAuthorityNode{
+					Type: "SSHCertificateAuthority",
+					SSHCertificateAuthority: certificateAuthority{
+						ID:          "ssh-ca-id",
+						Name:        "ssh-ca-name",
+						Fingerprint: "ssh-ca-fingerprint",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Correct type - returns model",
+			query: ReadX509CertificateAuthority{
+				CertificateAuthority: &certificateAuthorityNode{
+					Type: "X509CertificateAuthority",
+					X509CertificateAuthority: certificateAuthority{
+						ID:          "ca-id",
+						Name:        "ca-name",
+						Fingerprint: "ca-fingerprint",
+					},
+				},
+			},
+			expected: &model.CertificateAuthority{
+				ID:          "ca-id",
+				Name:        "ca-name",
+				Fingerprint: "ca-fingerprint",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.ToModel())
+		})
+	}
+}
+
+func TestDeleteSSHCertificateAuthorityQuery(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    DeleteSSHCertificateAuthority
+		expected bool
+	}{
+		{
+			name:     "Empty query - IsEmpty always false",
+			query:    DeleteSSHCertificateAuthority{},
+			expected: false,
+		},
+		{
+			name: "Ok true - IsEmpty always false",
+			query: DeleteSSHCertificateAuthority{
+				OkError: OkError{Ok: true},
+			},
+			expected: false,
+		},
+		{
+			name: "Ok false with error - IsEmpty always false",
+			query: DeleteSSHCertificateAuthority{
+				OkError: OkError{Ok: false, Error: "not found"},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestCreateSSHCertificateAuthorityQueryIsEmpty(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    CreateSSHCertificateAuthority
+		expected bool
+	}{
+		{
+			name:     "Nil entity - IsEmpty true",
+			query:    CreateSSHCertificateAuthority{},
+			expected: true,
+		},
+		{
+			name: "Non-nil entity - IsEmpty false",
+			query: CreateSSHCertificateAuthority{
+				SSHCertificateAuthorityEntityResponse: SSHCertificateAuthorityEntityResponse{
+					Entity: &certificateAuthority{
+						ID:          "ssh-ca-id",
+						Name:        "ssh-ca-name",
+						Fingerprint: "ssh-ca-fingerprint",
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestCreateSSHCertificateAuthorityQueryToModel(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    CreateSSHCertificateAuthority
+		expected *model.CertificateAuthority
+	}{
+		{
+			name:     "Nil entity - returns nil",
+			query:    CreateSSHCertificateAuthority{},
+			expected: nil,
+		},
+		{
+			name: "Non-nil entity - returns model",
+			query: CreateSSHCertificateAuthority{
+				SSHCertificateAuthorityEntityResponse: SSHCertificateAuthorityEntityResponse{
+					Entity: &certificateAuthority{
+						ID:          "ssh-ca-id",
+						Name:        "ssh-ca-name",
+						Fingerprint: "ssh-ca-fingerprint",
+					},
+				},
+			},
+			expected: &model.CertificateAuthority{
+				ID:          "ssh-ca-id",
+				Name:        "ssh-ca-name",
+				Fingerprint: "ssh-ca-fingerprint",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.ToModel())
+		})
+	}
+}
+
+func TestReadSSHCertificateAuthorityQueryIsEmpty(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    ReadSSHCertificateAuthority
+		expected bool
+	}{
+		{
+			name:     "Nil certificate authority - IsEmpty true",
+			query:    ReadSSHCertificateAuthority{},
+			expected: true,
+		},
+		{
+			name: "Non-nil certificate authority - IsEmpty false",
+			query: ReadSSHCertificateAuthority{
+				CertificateAuthority: &certificateAuthorityNode{
+					Type: "SSHCertificateAuthority",
+					SSHCertificateAuthority: certificateAuthority{
+						ID:          "ssh-ca-id",
+						Name:        "ssh-ca-name",
+						Fingerprint: "ssh-ca-fingerprint",
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestReadSSHCertificateAuthorityQueryToModel(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    ReadSSHCertificateAuthority
+		expected *model.CertificateAuthority
+	}{
+		{
+			name:     "Nil certificate authority - returns nil",
+			query:    ReadSSHCertificateAuthority{},
+			expected: nil,
+		},
+		{
+			name: "Wrong type - returns nil",
+			query: ReadSSHCertificateAuthority{
+				CertificateAuthority: &certificateAuthorityNode{
+					Type: "X509CertificateAuthority",
+					X509CertificateAuthority: certificateAuthority{
+						ID:          "x509-ca-id",
+						Name:        "x509-ca-name",
+						Fingerprint: "x509-ca-fingerprint",
+					},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "Correct type - returns model",
+			query: ReadSSHCertificateAuthority{
+				CertificateAuthority: &certificateAuthorityNode{
+					Type: "SSHCertificateAuthority",
+					SSHCertificateAuthority: certificateAuthority{
+						ID:          "ssh-ca-id",
+						Name:        "ssh-ca-name",
+						Fingerprint: "ssh-ca-fingerprint",
+					},
+				},
+			},
+			expected: &model.CertificateAuthority{
+				ID:          "ssh-ca-id",
+				Name:        "ssh-ca-name",
+				Fingerprint: "ssh-ca-fingerprint",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.ToModel())
+		})
+	}
+}
+
+func TestDeleteGatewayQuery(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    DeleteGateway
+		expected bool
+	}{
+		{
+			name:     "Empty query - IsEmpty returns false",
+			query:    DeleteGateway{},
+			expected: false,
+		},
+		{
+			name:     "Ok=true - IsEmpty returns false",
+			query:    DeleteGateway{OkError: OkError{Ok: true}},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestCreateGatewayQueryIsEmpty(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    CreateGateway
+		expected bool
+	}{
+		{
+			name:     "Nil entity - IsEmpty returns true",
+			query:    CreateGateway{},
+			expected: true,
+		},
+		{
+			name: "Non-nil entity - IsEmpty returns false",
+			query: CreateGateway{
+				GatewayEntityResponse: GatewayEntityResponse{
+					Entity: &gqlGateway{ID: graphql.ID("gw-id")},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestCreateGatewayQueryToModel(t *testing.T) {
+	sshCAID := graphql.ID("ssh-ca-id")
+
+	cases := []struct {
+		name     string
+		query    CreateGateway
+		expected *model.Gateway
+	}{
+		{
+			name:     "Nil entity - returns nil",
+			query:    CreateGateway{},
+			expected: nil,
+		},
+		{
+			name: "Without SSH CA - returns model with empty SSHCAID",
+			query: CreateGateway{
+				GatewayEntityResponse: GatewayEntityResponse{
+					Entity: &gqlGateway{
+						ID:            graphql.ID("gw-id"),
+						Address:       "10.0.0.1",
+						RemoteNetwork: struct{ ID graphql.ID }{ID: graphql.ID("rn-id")},
+						X509CA:        struct{ ID graphql.ID }{ID: graphql.ID("x509-id")},
+					},
+				},
+			},
+			expected: &model.Gateway{
+				ID:              "gw-id",
+				Address:         "10.0.0.1",
+				RemoteNetworkID: "rn-id",
+				X509CAID:        "x509-id",
+				SSHCAID:         "",
+			},
+		},
+		{
+			name: "With SSH CA - returns model with SSHCAID set",
+			query: CreateGateway{
+				GatewayEntityResponse: GatewayEntityResponse{
+					Entity: &gqlGateway{
+						ID:            graphql.ID("gw-id"),
+						Address:       "10.0.0.1",
+						RemoteNetwork: struct{ ID graphql.ID }{ID: graphql.ID("rn-id")},
+						X509CA:        struct{ ID graphql.ID }{ID: graphql.ID("x509-id")},
+						SSHCA:         &struct{ ID graphql.ID }{ID: sshCAID},
+					},
+				},
+			},
+			expected: &model.Gateway{
+				ID:              "gw-id",
+				Address:         "10.0.0.1",
+				RemoteNetworkID: "rn-id",
+				X509CAID:        "x509-id",
+				SSHCAID:         "ssh-ca-id",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.ToModel())
+		})
+	}
+}
+
+func TestReadGatewayQueryIsEmpty(t *testing.T) {
+	cases := []struct {
+		name     string
+		query    ReadGateway
+		expected bool
+	}{
+		{
+			name:     "Nil gateway - IsEmpty returns true",
+			query:    ReadGateway{},
+			expected: true,
+		},
+		{
+			name: "Non-nil gateway - IsEmpty returns false",
+			query: ReadGateway{
+				Gateway: &gqlGateway{ID: graphql.ID("gw-id")},
+			},
+			expected: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.IsEmpty())
+		})
+	}
+}
+
+func TestReadGatewayQueryToModel(t *testing.T) {
+	sshCAID := graphql.ID("ssh-ca-id")
+
+	cases := []struct {
+		name     string
+		query    ReadGateway
+		expected *model.Gateway
+	}{
+		{
+			name:     "Nil gateway - returns nil",
+			query:    ReadGateway{},
+			expected: nil,
+		},
+		{
+			name: "Gateway without SSH CA",
+			query: ReadGateway{
+				Gateway: &gqlGateway{
+					ID:            graphql.ID("gw-id"),
+					Address:       "10.0.0.1",
+					RemoteNetwork: struct{ ID graphql.ID }{ID: graphql.ID("rn-id")},
+					X509CA:        struct{ ID graphql.ID }{ID: graphql.ID("x509-id")},
+				},
+			},
+			expected: &model.Gateway{
+				ID:              "gw-id",
+				Address:         "10.0.0.1",
+				RemoteNetworkID: "rn-id",
+				X509CAID:        "x509-id",
+				SSHCAID:         "",
+			},
+		},
+		{
+			name: "Gateway with SSH CA",
+			query: ReadGateway{
+				Gateway: &gqlGateway{
+					ID:            graphql.ID("gw-id"),
+					Address:       "10.0.0.1",
+					RemoteNetwork: struct{ ID graphql.ID }{ID: graphql.ID("rn-id")},
+					X509CA:        struct{ ID graphql.ID }{ID: graphql.ID("x509-id")},
+					SSHCA:         &struct{ ID graphql.ID }{ID: sshCAID},
+				},
+			},
+			expected: &model.Gateway{
+				ID:              "gw-id",
+				Address:         "10.0.0.1",
+				RemoteNetworkID: "rn-id",
+				X509CAID:        "x509-id",
+				SSHCAID:         "ssh-ca-id",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.expected, c.query.ToModel())
 		})
 	}
 }

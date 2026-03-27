@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client/query"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client/query"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 )
 
 func (client *Client) ReadShallowDNSFilteringProfiles(ctx context.Context) ([]*model.DNSFilteringProfile, error) {
@@ -182,7 +182,7 @@ func (client *Client) UpdateDNSFilteringProfile(ctx context.Context, input *mode
 	return response.Entity.ToModel(), nil
 }
 
-func (client *Client) readDNSFilteringProfileGroupsAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.GroupIDEdge], error) {
+func (client *Client) readDNSFilteringProfileGroupsAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.GroupIDEdge], error) {
 	opr := resourceGroup.read().withCustomName("readDNSFilteringProfileGroupsAfter")
 
 	variables[query.CursorGroups] = cursor

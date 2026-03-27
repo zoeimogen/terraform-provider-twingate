@@ -1,8 +1,8 @@
 package query
 
 import (
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 )
 
 const CursorResources = "resourcesEndCursor"
@@ -37,8 +37,8 @@ func (r ReadFullResourcesByName) IsEmpty() bool {
 	return len(r.Edges) == 0
 }
 
-func (r ReadFullResourcesByName) ToModel() []*model.Resource {
-	return utils.Map[*FullResourceEdge, *model.Resource](r.Edges, func(edge *FullResourceEdge) *model.Resource {
+func (r ReadFullResourcesByName) ToModel() ([]*model.Resource, error) {
+	return utils.MapWithError[*FullResourceEdge, *model.Resource](r.Edges, func(edge *FullResourceEdge) (*model.Resource, error) {
 		return edge.Node.ToModel()
 	})
 }
@@ -59,8 +59,8 @@ type FullResourceEdge struct {
 	Node *gqlResource
 }
 
-func (r ReadFullResources) ToModel() []*model.Resource {
-	return utils.Map[*FullResourceEdge, *model.Resource](r.Edges, func(edge *FullResourceEdge) *model.Resource {
+func (r ReadFullResources) ToModel() ([]*model.Resource, error) {
+	return utils.MapWithError[*FullResourceEdge, *model.Resource](r.Edges, func(edge *FullResourceEdge) (*model.Resource, error) {
 		return edge.Node.ToModel()
 	})
 }

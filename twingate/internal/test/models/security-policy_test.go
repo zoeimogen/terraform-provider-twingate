@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,11 +13,11 @@ func TestSecurityPolicyModel(t *testing.T) {
 	cases := []struct {
 		policy model.SecurityPolicy
 
-		expected interface{}
+		expected any
 	}{
 		{
 			policy: model.SecurityPolicy{},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:   "",
 				attr.Name: "",
 			},
@@ -27,7 +27,7 @@ func TestSecurityPolicyModel(t *testing.T) {
 				ID:   "id",
 				Name: "name",
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:   "id",
 				attr.Name: "name",
 			},

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -22,8 +22,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
-
-var ErrAllowedToChangeOnlyManualUsers = fmt.Errorf("only users of type %s may be modified", model.UserTypeManual)
 
 // Ensure the implementation satisfies the desired interfaces.
 var _ resource.Resource = &user{}
@@ -140,7 +138,7 @@ func (r *user) Create(ctx context.Context, req resource.CreateRequest, resp *res
 		Email:     plan.Email.ValueString(),
 		FirstName: plan.FirstName.ValueString(),
 		LastName:  plan.LastName.ValueString(),
-		Role:      withDefaultValue(plan.Role.ValueString(), model.UserRoleMember),
+		Role:      withDefaultValue(plan.Role.ValueString(), model.DefaultUserRole),
 		IsActive:  convertIsActiveFlag(plan.IsActive),
 	})
 
@@ -175,7 +173,6 @@ func (r *user) Update(ctx context.Context, req resource.UpdateRequest, resp *res
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	addErr(&resp.Diagnostics, isAllowedToChangeUser(&state), operationUpdate, TwingateUser)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -209,19 +206,10 @@ func (r *user) Update(ctx context.Context, req resource.UpdateRequest, resp *res
 	r.helper(ctx, user, &state, &resp.State, &resp.Diagnostics, err, operationUpdate)
 }
 
-func isAllowedToChangeUser(state *userModel) error {
-	if state.Type.ValueString() != model.UserTypeManual {
-		return ErrAllowedToChangeOnlyManualUsers
-	}
-
-	return nil
-}
-
 func (r *user) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state userModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	addErr(&resp.Diagnostics, isAllowedToChangeUser(&state), operationDelete, TwingateUser)
 
 	if resp.Diagnostics.HasError() {
 		return

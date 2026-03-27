@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,34 +15,31 @@ func TestGroupModel(t *testing.T) {
 
 		expectedName string
 		expectedID   string
-		expected     interface{}
+		expected     any
 	}{
 		{
 			group: model.Group{},
-			expected: map[string]interface{}{
-				attr.ID:               "",
-				attr.Name:             "",
-				attr.Type:             "",
-				attr.IsActive:         false,
-				attr.SecurityPolicyID: "",
+			expected: map[string]any{
+				attr.ID:       "",
+				attr.Name:     "",
+				attr.Type:     "",
+				attr.IsActive: false,
 			},
 		},
 		{
 			group: model.Group{
-				ID:               "id",
-				Name:             "name",
-				Type:             "type",
-				IsActive:         true,
-				SecurityPolicyID: "policy-id",
+				ID:       "id",
+				Name:     "name",
+				Type:     "type",
+				IsActive: true,
 			},
 			expectedID:   "id",
 			expectedName: "name",
-			expected: map[string]interface{}{
-				attr.ID:               "id",
-				attr.Name:             "name",
-				attr.Type:             "type",
-				attr.IsActive:         true,
-				attr.SecurityPolicyID: "policy-id",
+			expected: map[string]any{
+				attr.ID:       "id",
+				attr.Name:     "name",
+				attr.Type:     "type",
+				attr.IsActive: true,
 			},
 		},
 	}

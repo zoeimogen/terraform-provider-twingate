@@ -2,15 +2,16 @@ package resource
 
 import (
 	"context"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"testing"
+
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	tfattr "github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 var defaultProtocols = &model.Protocols{
@@ -29,7 +30,7 @@ func TestStateUpgraderV0(t *testing.T) {
 	tests := []struct {
 		name          string
 		priorState    func() resourceModelV0
-		expectedState func() resourceModelV1
+		expectedState func() resourceModel
 	}{
 		{
 			name: "base case",
@@ -54,8 +55,8 @@ func TestStateUpgraderV0(t *testing.T) {
 					Access:                   makeObjectsListNull(ctx, accessBlockAttributeTypes()),
 				}
 			},
-			expectedState: func() resourceModelV1 {
-				return resourceModelV1{
+			expectedState: func() resourceModel {
+				return resourceModel{
 					ID:                       types.StringValue("test-id"),
 					Name:                     types.StringValue("test-name"),
 					Address:                  types.StringValue("test-address"),
@@ -67,7 +68,12 @@ func TestStateUpgraderV0(t *testing.T) {
 					IsBrowserShortcutEnabled: types.BoolValue(false),
 					Alias:                    types.StringValue("alias.com"),
 					SecurityPolicyID:         types.StringValue("security-policy-id"),
-					Access:                   makeObjectsListNull(ctx, accessBlockAttributeTypes()),
+
+					AccessPolicy:  makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:   makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
+					ServiceAccess: makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
+					Tags:          types.MapNull(types.StringType),
+					TagsAll:       types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -89,20 +95,25 @@ func TestStateUpgraderV0(t *testing.T) {
 					Access:          makeObjectsListNull(ctx, accessBlockAttributeTypes()),
 				}
 			},
-			expectedState: func() resourceModelV1 {
-				return resourceModelV1{
+			expectedState: func() resourceModel {
+				return resourceModel{
 					ID:                       types.StringValue("test-id"),
 					Name:                     types.StringValue("test-name"),
 					Address:                  types.StringValue("test-address"),
 					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
 					Protocols:                defaultProtocolsObject(),
-					Access:                   makeObjectsListNull(ctx, accessBlockAttributeTypes()),
 					IsAuthoritative:          types.BoolNull(),
 					IsActive:                 types.BoolNull(),
 					IsVisible:                types.BoolNull(),
 					IsBrowserShortcutEnabled: types.BoolNull(),
 					Alias:                    types.StringNull(),
 					SecurityPolicyID:         types.StringNull(),
+
+					AccessPolicy:  makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:   makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
+					ServiceAccess: makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
+					Tags:          types.MapNull(types.StringType),
+					TagsAll:       types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -126,20 +137,25 @@ func TestStateUpgraderV0(t *testing.T) {
 					SecurityPolicyID: types.StringValue(""),
 				}
 			},
-			expectedState: func() resourceModelV1 {
-				return resourceModelV1{
+			expectedState: func() resourceModel {
+				return resourceModel{
 					ID:                       types.StringValue("test-id"),
 					Name:                     types.StringValue("test-name"),
 					Address:                  types.StringValue("test-address"),
 					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
 					Protocols:                defaultProtocolsObject(),
-					Access:                   makeObjectsListNull(ctx, accessBlockAttributeTypes()),
 					IsAuthoritative:          types.BoolNull(),
 					IsActive:                 types.BoolNull(),
 					IsVisible:                types.BoolNull(),
 					IsBrowserShortcutEnabled: types.BoolNull(),
 					Alias:                    types.StringNull(),
 					SecurityPolicyID:         types.StringNull(),
+
+					AccessPolicy:  makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:   makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
+					ServiceAccess: makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
+					Tags:          types.MapNull(types.StringType),
+					TagsAll:       types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -174,27 +190,39 @@ func TestStateUpgraderV0(t *testing.T) {
 					Access:                   access,
 				}
 			},
-			expectedState: func() resourceModelV1 {
-				groupIDs := []string{"test-group-id-1", "test-group-id-2"}
-				serviceAccountIDs := []string{"test-service-account-id-1", "test-service-account-id-2"}
-				access, diags := convertAccessBlockToTerraform(ctx, groupIDs, serviceAccountIDs)
+			expectedState: func() resourceModel {
+				groupAccess, diags := convertGroupsAccessToTerraformForImport(context.TODO(), []model.AccessGroup{
+					{GroupID: "test-group-id-1"}, {GroupID: "test-group-id-2"},
+				})
+
 				if diags.HasError() {
 					t.Fatalf("unexpected errors during upgrade: %v", diags)
 				}
 
-				return resourceModelV1{
+				serviceAccess, diags := convertServiceAccessToTerraform(ctx, []string{"test-service-account-id-1", "test-service-account-id-2"})
+				if diags.HasError() {
+					t.Fatalf("unexpected errors during upgrade: %v", diags)
+				}
+
+				return resourceModel{
 					ID:                       types.StringValue("test-id"),
 					Name:                     types.StringValue("test-name"),
 					Address:                  types.StringValue("test-address"),
 					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
 					Protocols:                defaultProtocolsObject(),
-					Access:                   access,
 					IsAuthoritative:          types.BoolValue(true),
 					IsActive:                 types.BoolValue(true),
 					IsVisible:                types.BoolValue(false),
 					IsBrowserShortcutEnabled: types.BoolValue(false),
 					Alias:                    types.StringValue("alias.com"),
 					SecurityPolicyID:         types.StringValue("security-policy-id"),
+
+					GroupAccess:   groupAccess,
+					ServiceAccess: serviceAccess,
+
+					AccessPolicy: makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					Tags:         types.MapNull(types.StringType),
+					TagsAll:      types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -216,9 +244,13 @@ func TestStateUpgraderV0(t *testing.T) {
 				State: &state,
 			}
 
+			newResource := NewResourceResource()
+			newSchema := resource.SchemaResponse{}
+			newResource.Schema(nil, resource.SchemaRequest{}, &newSchema)
+
 			resp := &resource.UpgradeStateResponse{
 				State: tfsdk.State{
-					Schema: upgradeResourceStateV1().PriorSchema,
+					Schema: newSchema.Schema,
 				},
 			}
 
@@ -235,7 +267,7 @@ func TestStateUpgraderV0(t *testing.T) {
 			assert.Equal(t, "Please update the protocols sections format from a block to an object", resp.Diagnostics[0].Summary())
 
 			// Retrieve the upgraded state
-			var upgradedState resourceModelV1
+			var upgradedState resourceModel
 			digs := resp.State.Get(ctx, &upgradedState)
 			assert.False(t, digs.HasError())
 

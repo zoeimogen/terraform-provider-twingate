@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/mitchellh/copystructure"
 	"golang.org/x/sync/errgroup"
 )
@@ -38,13 +38,13 @@ type ReadClient interface {
 func (c *clientCache) setClient(client ReadClient, opts CacheOptions) {
 	c.once.Do(func() {
 		c.handlers = map[string]resourceHandler{
-			reflect.TypeOf(&model.Resource{}).String(): &handler[*model.Resource, *model.ResourcesFilter]{
+			reflect.TypeFor[*model.Resource]().String(): &handler[*model.Resource, *model.ResourcesFilter]{
 				enabled:         opts.ResourceEnabled,
 				readResources:   client.ReadFullResources,
 				filter:          opts.ResourcesFilter,
 				filterResources: client.ReadFullResourcesByName,
 			},
-			reflect.TypeOf(&model.Group{}).String(): &handler[*model.Group, *model.GroupsFilter]{
+			reflect.TypeFor[*model.Group]().String(): &handler[*model.Group, *model.GroupsFilter]{
 				enabled:         opts.GroupsEnabled,
 				readResources:   client.ReadFullGroups,
 				filter:          opts.GroupsFilter,
@@ -121,7 +121,6 @@ func (h *handler[T, F]) getResource(resourceID string) (any, bool) {
 	}
 
 	obj, err := copystructure.Copy(res)
-
 	if err != nil {
 		log.Printf("[TWINGATE_LOG] [ERR] %T failed copy object from cache: %s", emptyObj, err.Error())
 
@@ -158,7 +157,6 @@ func (h *handler[T, F]) setResource(resource identifiable) {
 	}()
 
 	obj, err := copystructure.Copy(resource)
-
 	if err != nil {
 		log.Printf("[TWINGATE_LOG] [ERR] %T failed store object to cache: %s", resource, err.Error())
 

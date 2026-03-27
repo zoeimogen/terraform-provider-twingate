@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client/query"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client/query"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 )
 
 func (client *Client) CreateConnector(ctx context.Context, input *model.Connector) (*model.Connector, error) {
@@ -97,7 +97,7 @@ func (client *Client) ReadConnectors(ctx context.Context, name, filter string) (
 	return response.ToModel(), nil
 }
 
-func (client *Client) readConnectorsAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.ConnectorEdge], error) {
+func (client *Client) readConnectorsAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.ConnectorEdge], error) {
 	opr := resourceConnector.read()
 
 	variables[query.CursorConnectors] = cursor

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
 )
 
 const (
@@ -15,13 +15,12 @@ const (
 )
 
 type Group struct {
-	ID               string
-	Name             string
-	Type             string
-	IsActive         bool
-	Users            []string
-	IsAuthoritative  bool
-	SecurityPolicyID string
+	ID              string
+	Name            string
+	Type            string
+	IsActive        bool
+	Users           []string
+	IsAuthoritative bool
 }
 
 func (g Group) GetName() string {
@@ -32,17 +31,15 @@ func (g Group) GetID() string {
 	return g.ID
 }
 
-func (g Group) ToTerraform() interface{} {
-	return map[string]interface{}{
-		attr.ID:               g.ID,
-		attr.Name:             g.Name,
-		attr.Type:             g.Type,
-		attr.IsActive:         g.IsActive,
-		attr.SecurityPolicyID: g.SecurityPolicyID,
+func (g Group) ToTerraform() any {
+	return map[string]any{
+		attr.ID:       g.ID,
+		attr.Name:     g.Name,
+		attr.Type:     g.Type,
+		attr.IsActive: g.IsActive,
 	}
 }
 
-//nolint:cyclop
 func (g Group) Match(filter ResourceFilter) bool {
 	if filter.IsNil() {
 		// matches all groups

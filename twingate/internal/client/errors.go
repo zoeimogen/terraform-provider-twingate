@@ -10,6 +10,9 @@ import (
 var (
 	ErrGraphqlIDIsEmpty          = errors.New("id is empty")
 	ErrGraphqlNameIsEmpty        = errors.New("name is empty")
+	ErrGraphqlCertificateIsEmpty = errors.New("certificate is empty")
+	ErrGraphqlPublicKeyIsEmpty   = errors.New("public key is empty")
+	ErrGraphqlAddressIsEmpty     = errors.New("address is empty")
 	ErrGraphqlEmptyBothNameAndID = errors.New("both name and id should not be empty")
 	ErrGraphqlResultIsEmpty      = errors.New("query result is empty")
 	ErrGraphqlConnectorIDIsEmpty = errors.New("connector id is empty")
@@ -71,7 +74,7 @@ func NewAPIError(wrappedError error, operation, resource string) *APIError {
 }
 
 func (e *APIError) Error() string {
-	args := []interface{}{e.Operation, e.Resource}
+	args := []any{e.Operation, e.Resource}
 
 	var format = "failed to %s %s"
 

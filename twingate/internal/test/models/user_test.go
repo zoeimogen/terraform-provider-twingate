@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserModel(t *testing.T) {
 	cases := []struct {
 		user     model.User
-		expected interface{}
+		expected any
 	}{
 		{
 			user: model.User{},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:        "",
 				attr.FirstName: "",
 				attr.LastName:  "",
@@ -34,7 +34,7 @@ func TestUserModel(t *testing.T) {
 				Role:      "ADMIN",
 				Type:      "MANUAL",
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:        "1",
 				attr.FirstName: "John",
 				attr.LastName:  "White",
@@ -52,7 +52,7 @@ func TestUserModel(t *testing.T) {
 				Role:      "USER",
 				Type:      "SYNCED",
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:        "2",
 				attr.FirstName: "Hue",
 				attr.LastName:  "Black",

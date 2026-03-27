@@ -2,13 +2,16 @@ package resource
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/test"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/test/acctests"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/test"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/test/acctests"
 	sdk "github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 func TestAccRemoteConnectorWithTokens(t *testing.T) {
@@ -68,4 +71,46 @@ func checkTwingateConnectorTokensSet(connectorNameTokens string) sdk.TestCheckFu
 
 		return nil
 	}
+}
+
+func TestAccRemoteEphemeralConnectorTokens(t *testing.T) {
+	t.Parallel()
+
+	const terraformResourceName = "test_t2"
+	remoteNetworkName := test.RandomName()
+
+	sdk.Test(t, sdk.TestCase{
+		ProtoV6ProviderFactories: acctests.ProviderFactories,
+		PreCheck: func() {
+			acctests.PreCheck(t)
+
+			// Skip if running with OpenTofu
+			if strings.Contains(os.Getenv("TF_ACC_PROVIDER_HOST"), "opentofu.org") {
+				t.Skip("Ephemeral resources not supported in OpenTofu")
+			}
+		},
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			// Ephemeral resources require Terraform 1.10+
+			tfversion.SkipBelow(tfversion.Version1_10_0),
+		},
+		CheckDestroy: acctests.CheckTwingateConnectorTokensInvalidated,
+		Steps: []sdk.TestStep{
+			{
+				Config: terraformResourceTwingateEphemeralConnectorTokens(terraformResourceName, remoteNetworkName),
+				Check: acctests.ComposeTestCheckFunc(
+					acctests.CheckTwingateResourceExists(acctests.TerraformConnector(terraformResourceName)),
+				),
+			},
+		},
+	})
+}
+
+func terraformResourceTwingateEphemeralConnectorTokens(terraformResourceName, remoteNetworkName string) string {
+	return fmt.Sprintf(`
+	%s
+	ephemeral "twingate_connector_tokens" "%s" {
+	  connector_id = twingate_connector.%s.id
+	}
+
+	`, terraformResourceTwingateConnector(terraformResourceName, terraformResourceName, remoteNetworkName), terraformResourceName, terraformResourceName)
 }

@@ -1,6 +1,6 @@
 package model
 
-import "github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
+import "github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
 
 type Connector struct {
 	ID                   string
@@ -22,8 +22,8 @@ func (c Connector) GetID() string {
 	return c.ID
 }
 
-func (c Connector) ToTerraform() interface{} {
-	return map[string]interface{}{
+func (c Connector) ToTerraform() any {
+	return map[string]any{
 		attr.ID:                   c.ID,
 		attr.Name:                 c.Name,
 		attr.RemoteNetworkID:      c.NetworkID,

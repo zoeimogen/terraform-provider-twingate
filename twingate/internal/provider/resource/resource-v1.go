@@ -2,8 +2,10 @@ package resource
 
 import (
 	"context"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -173,28 +175,29 @@ func upgradeResourceStateV1() resource.StateUpgrader {
 				return
 			}
 
-			groupIDs := getAccessAttribute(priorState.Access, attr.GroupIDs)
-			serviceAccountIDs := getAccessAttribute(priorState.Access, attr.ServiceAccountIDs)
+			groupIDs := getAccessAttributeV0(priorState.Access, attr.GroupIDs)
+			serviceAccountIDs := getAccessAttributeV0(priorState.Access, attr.ServiceAccountIDs)
 
-			accessGroup, diags := convertAccessGroupsToTerraform(ctx, groupIDs)
+			accessGroup, diags := convertAccessGroupsToTerraform(ctx, utils.Map(groupIDs, func(id string) model.AccessGroup {
+				return model.AccessGroup{GroupID: id}
+			}))
 			resp.Diagnostics.Append(diags...)
 
 			accessServiceAccount, diags := convertAccessServiceAccountsToTerraform(ctx, serviceAccountIDs)
 			resp.Diagnostics.Append(diags...)
 
 			upgradedState := resourceModel{
-				ID:                             priorState.ID,
-				Name:                           priorState.Name,
-				Address:                        priorState.Address,
-				RemoteNetworkID:                priorState.RemoteNetworkID,
-				Protocols:                      priorState.Protocols,
-				GroupAccess:                    accessGroup,
-				ServiceAccess:                  accessServiceAccount,
-				IsActive:                       priorState.IsActive,
-				Tags:                           types.MapNull(types.StringType),
-				TagsAll:                        types.MapNull(types.StringType),
-				ApprovalMode:                   types.StringNull(),
-				UsageBasedAutolockDurationDays: types.Int64Null(),
+				ID:              priorState.ID,
+				Name:            priorState.Name,
+				Address:         priorState.Address,
+				RemoteNetworkID: priorState.RemoteNetworkID,
+				Protocols:       priorState.Protocols,
+				AccessPolicy:    makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+				GroupAccess:     accessGroup,
+				ServiceAccess:   accessServiceAccount,
+				IsActive:        priorState.IsActive,
+				Tags:            types.MapNull(types.StringType),
+				TagsAll:         types.MapNull(types.StringType),
 			}
 
 			if !priorState.IsAuthoritative.IsNull() {
@@ -223,36 +226,6 @@ func upgradeResourceStateV1() resource.StateUpgrader {
 				"See the v2 to v3 migration guide in the Twingate Terraform Provider documentation https://registry.terraform.io/providers/Twingate/twingate/latest/docs/guides/migration-v2-to-v3-guide")
 		},
 	}
-}
-
-func convertAccessGroupsToTerraform(ctx context.Context, groups []string) (types.Set, diag.Diagnostics) {
-	var diagnostics diag.Diagnostics
-
-	if len(groups) == 0 {
-		return makeObjectsSetNull(ctx, accessGroupAttributeTypes()), diagnostics
-	}
-
-	objects := make([]types.Object, 0, len(groups))
-
-	for _, g := range groups {
-		attributes := map[string]tfattr.Value{
-			attr.GroupID:                        types.StringValue(g),
-			attr.SecurityPolicyID:               types.StringNull(),
-			attr.UsageBasedAutolockDurationDays: types.Int64Null(),
-			attr.ApprovalMode:                   types.StringNull(),
-		}
-
-		obj, diags := types.ObjectValue(accessGroupAttributeTypes(), attributes)
-		diagnostics.Append(diags...)
-
-		objects = append(objects, obj)
-	}
-
-	if diagnostics.HasError() {
-		return makeObjectsSetNull(ctx, accessGroupAttributeTypes()), diagnostics
-	}
-
-	return makeObjectsSet(ctx, objects...)
 }
 
 func convertAccessServiceAccountsToTerraform(ctx context.Context, serviceAccounts []string) (types.Set, diag.Diagnostics) {
@@ -317,4 +290,33 @@ func convertAccessBlockToTerraform(ctx context.Context, groups, serviceAccounts 
 	}
 
 	return makeObjectsList(ctx, obj)
+}
+
+func convertAccessGroupsToTerraform(ctx context.Context, groups []model.AccessGroup) (types.Set, diag.Diagnostics) {
+	var diagnostics diag.Diagnostics
+
+	if len(groups) == 0 {
+		return makeObjectsSetNull(ctx, accessGroupAttributeTypes()), diagnostics
+	}
+
+	objects := make([]types.Object, 0, len(groups))
+
+	for _, g := range groups {
+		attributes := map[string]tfattr.Value{
+			attr.GroupID:          types.StringValue(g.GroupID),
+			attr.SecurityPolicyID: types.StringPointerValue(g.SecurityPolicyID),
+			attr.AccessPolicy:     makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+		}
+
+		obj, diags := types.ObjectValue(accessGroupAttributeTypes(), attributes)
+		diagnostics.Append(diags...)
+
+		objects = append(objects, obj)
+	}
+
+	if diagnostics.HasError() {
+		return makeObjectsSetNull(ctx, accessGroupAttributeTypes()), diagnostics
+	}
+
+	return makeObjectsSet(ctx, objects...)
 }

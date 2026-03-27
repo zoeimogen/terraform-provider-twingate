@@ -2,9 +2,12 @@ package resource
 
 import (
 	"context"
+	"testing"
+
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -38,23 +41,22 @@ func TestStateUpgraderV1(t *testing.T) {
 			},
 			expectedState: func() resourceModel {
 				return resourceModel{
-					ID:                             types.StringValue("test-id"),
-					Name:                           types.StringValue("test-name"),
-					Address:                        types.StringValue("test-address"),
-					RemoteNetworkID:                types.StringValue("test-remote-network-id"),
-					Protocols:                      defaultProtocolsObject(),
-					IsAuthoritative:                types.BoolValue(true),
-					IsActive:                       types.BoolValue(true),
-					IsVisible:                      types.BoolValue(false),
-					IsBrowserShortcutEnabled:       types.BoolValue(false),
-					Alias:                          types.StringValue("alias.com"),
-					SecurityPolicyID:               types.StringValue("security-policy-id"),
-					ApprovalMode:                   types.StringNull(),
-					GroupAccess:                    makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
-					ServiceAccess:                  makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
-					Tags:                           types.MapNull(types.StringType),
-					TagsAll:                        types.MapNull(types.StringType),
-					UsageBasedAutolockDurationDays: types.Int64Null(),
+					ID:                       types.StringValue("test-id"),
+					Name:                     types.StringValue("test-name"),
+					Address:                  types.StringValue("test-address"),
+					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
+					Protocols:                defaultProtocolsObject(),
+					IsAuthoritative:          types.BoolValue(true),
+					IsActive:                 types.BoolValue(true),
+					IsVisible:                types.BoolValue(false),
+					IsBrowserShortcutEnabled: types.BoolValue(false),
+					Alias:                    types.StringValue("alias.com"),
+					SecurityPolicyID:         types.StringValue("security-policy-id"),
+					AccessPolicy:             makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:              makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
+					ServiceAccess:            makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
+					Tags:                     types.MapNull(types.StringType),
+					TagsAll:                  types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -73,23 +75,22 @@ func TestStateUpgraderV1(t *testing.T) {
 			},
 			expectedState: func() resourceModel {
 				return resourceModel{
-					ID:                             types.StringValue("test-id"),
-					Name:                           types.StringValue("test-name"),
-					Address:                        types.StringValue("test-address"),
-					RemoteNetworkID:                types.StringValue("test-remote-network-id"),
-					Protocols:                      defaultProtocolsObject(),
-					IsAuthoritative:                types.BoolNull(),
-					IsActive:                       types.BoolNull(),
-					IsVisible:                      types.BoolNull(),
-					IsBrowserShortcutEnabled:       types.BoolNull(),
-					Alias:                          types.StringNull(),
-					SecurityPolicyID:               types.StringNull(),
-					ApprovalMode:                   types.StringNull(),
-					GroupAccess:                    makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
-					ServiceAccess:                  makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
-					Tags:                           types.MapNull(types.StringType),
-					TagsAll:                        types.MapNull(types.StringType),
-					UsageBasedAutolockDurationDays: types.Int64Null(),
+					ID:                       types.StringValue("test-id"),
+					Name:                     types.StringValue("test-name"),
+					Address:                  types.StringValue("test-address"),
+					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
+					Protocols:                defaultProtocolsObject(),
+					IsAuthoritative:          types.BoolNull(),
+					IsActive:                 types.BoolNull(),
+					IsVisible:                types.BoolNull(),
+					IsBrowserShortcutEnabled: types.BoolNull(),
+					Alias:                    types.StringNull(),
+					SecurityPolicyID:         types.StringNull(),
+					AccessPolicy:             makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:              makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
+					ServiceAccess:            makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
+					Tags:                     types.MapNull(types.StringType),
+					TagsAll:                  types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -110,23 +111,22 @@ func TestStateUpgraderV1(t *testing.T) {
 			},
 			expectedState: func() resourceModel {
 				return resourceModel{
-					ID:                             types.StringValue("test-id"),
-					Name:                           types.StringValue("test-name"),
-					Address:                        types.StringValue("test-address"),
-					RemoteNetworkID:                types.StringValue("test-remote-network-id"),
-					Protocols:                      defaultProtocolsObject(),
-					IsAuthoritative:                types.BoolNull(),
-					IsActive:                       types.BoolNull(),
-					IsVisible:                      types.BoolNull(),
-					IsBrowserShortcutEnabled:       types.BoolNull(),
-					Alias:                          types.StringNull(),
-					SecurityPolicyID:               types.StringNull(),
-					ApprovalMode:                   types.StringNull(),
-					GroupAccess:                    makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
-					ServiceAccess:                  makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
-					Tags:                           types.MapNull(types.StringType),
-					TagsAll:                        types.MapNull(types.StringType),
-					UsageBasedAutolockDurationDays: types.Int64Null(),
+					ID:                       types.StringValue("test-id"),
+					Name:                     types.StringValue("test-name"),
+					Address:                  types.StringValue("test-address"),
+					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
+					Protocols:                defaultProtocolsObject(),
+					IsAuthoritative:          types.BoolNull(),
+					IsActive:                 types.BoolNull(),
+					IsVisible:                types.BoolNull(),
+					IsBrowserShortcutEnabled: types.BoolNull(),
+					Alias:                    types.StringNull(),
+					SecurityPolicyID:         types.StringNull(),
+					AccessPolicy:             makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:              makeObjectsSetNull(ctx, accessGroupAttributeTypes()),
+					ServiceAccess:            makeObjectsSetNull(ctx, accessServiceAccountAttributeTypes()),
+					Tags:                     types.MapNull(types.StringType),
+					TagsAll:                  types.MapNull(types.StringType),
 				}
 			},
 		},
@@ -159,7 +159,9 @@ func TestStateUpgraderV1(t *testing.T) {
 			expectedState: func() resourceModel {
 				groupIDs := []string{"test-group-id-1", "test-group-id-2"}
 				serviceAccountIDs := []string{"test-service-account-id-1", "test-service-account-id-2"}
-				accessGroup, diags := convertAccessGroupsToTerraform(ctx, groupIDs)
+				accessGroup, diags := convertAccessGroupsToTerraform(ctx, utils.Map(groupIDs, func(id string) model.AccessGroup {
+					return model.AccessGroup{GroupID: id}
+				}))
 				if diags.HasError() {
 					t.Fatalf("unexpected errors during upgrade: %v", diags)
 				}
@@ -170,23 +172,22 @@ func TestStateUpgraderV1(t *testing.T) {
 				}
 
 				return resourceModel{
-					ID:                             types.StringValue("test-id"),
-					Name:                           types.StringValue("test-name"),
-					Address:                        types.StringValue("test-address"),
-					RemoteNetworkID:                types.StringValue("test-remote-network-id"),
-					Protocols:                      defaultProtocolsObject(),
-					IsAuthoritative:                types.BoolValue(true),
-					IsActive:                       types.BoolValue(true),
-					IsVisible:                      types.BoolValue(false),
-					IsBrowserShortcutEnabled:       types.BoolValue(false),
-					Alias:                          types.StringValue("alias.com"),
-					SecurityPolicyID:               types.StringValue("security-policy-id"),
-					ApprovalMode:                   types.StringNull(),
-					GroupAccess:                    accessGroup,
-					ServiceAccess:                  accessServiceAccount,
-					Tags:                           types.MapNull(types.StringType),
-					TagsAll:                        types.MapNull(types.StringType),
-					UsageBasedAutolockDurationDays: types.Int64Null(),
+					ID:                       types.StringValue("test-id"),
+					Name:                     types.StringValue("test-name"),
+					Address:                  types.StringValue("test-address"),
+					RemoteNetworkID:          types.StringValue("test-remote-network-id"),
+					Protocols:                defaultProtocolsObject(),
+					IsAuthoritative:          types.BoolValue(true),
+					IsActive:                 types.BoolValue(true),
+					IsVisible:                types.BoolValue(false),
+					IsBrowserShortcutEnabled: types.BoolValue(false),
+					Alias:                    types.StringValue("alias.com"),
+					SecurityPolicyID:         types.StringValue("security-policy-id"),
+					AccessPolicy:             makeObjectsSetNull(ctx, accessPolicyAttributeTypes()),
+					GroupAccess:              accessGroup,
+					ServiceAccess:            accessServiceAccount,
+					Tags:                     types.MapNull(types.StringType),
+					TagsAll:                  types.MapNull(types.StringType),
 				}
 			},
 		},

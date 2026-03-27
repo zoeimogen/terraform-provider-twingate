@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client/query"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client/query"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/hasura/go-graphql-client"
 )
 
@@ -31,6 +31,47 @@ func newTagInputs(tags map[string]string) []TagInput {
 	}
 
 	return tagInputs
+}
+
+type AccessMode string
+type AccessPolicyInput struct {
+	Mode            AccessMode `json:"mode"`
+	DurationSeconds *int64     `json:"durationSeconds"`
+}
+
+func NewAccessPolicyInput(accessPolicy *model.AccessPolicy) *AccessPolicyInput {
+	if accessPolicy == nil {
+		return &AccessPolicyInput{
+			Mode: model.AccessPolicyModeManual,
+		}
+	}
+
+	var durationSeconds *int64
+
+	if accessPolicy.Duration != nil {
+		duration, _ := accessPolicy.ParseDuration()
+		seconds := int64(duration.Seconds())
+		durationSeconds = &seconds
+	}
+
+	mode := AccessMode(model.AccessPolicyModeManual)
+	if durationSeconds != nil {
+		mode = model.AccessPolicyModeAutoLock
+	}
+
+	if accessPolicy.Mode != nil {
+		mode = AccessMode(*accessPolicy.Mode)
+	}
+
+	// skip duration when mode=MANUAL
+	if mode == model.AccessPolicyModeManual {
+		durationSeconds = nil
+	}
+
+	return &AccessPolicyInput{
+		Mode:            mode,
+		DurationSeconds: durationSeconds,
+	}
 }
 
 type ProtocolsInput struct {
@@ -83,14 +124,36 @@ func newPorts(ports []*model.PortRange) []*PortRangeInput {
 
 type AccessApprovalMode string
 
-func NewAccessApprovalMode(approvalMode string) *AccessApprovalMode {
-	if approvalMode == "" {
+func NewAccessApprovalMode(accessPolicy *model.AccessPolicy) *AccessApprovalMode {
+	if accessPolicy != nil && accessPolicy.Mode != nil && *accessPolicy.Mode == model.AccessPolicyModeManual {
 		return nil
 	}
 
-	mode := AccessApprovalMode(approvalMode)
+	var approvalMode string
 
-	return &mode
+	if accessPolicy != nil && accessPolicy.ApprovalMode != nil {
+		approvalMode = *accessPolicy.ApprovalMode
+	}
+
+	if approvalMode == "" {
+		approvalMode = model.ApprovalModeManual
+	}
+
+	val := AccessApprovalMode(approvalMode)
+
+	return &val
+}
+
+func NewGroupAccessApprovalMode(accessPolicy *model.AccessPolicy) *AccessApprovalMode {
+	if accessPolicy == nil || accessPolicy.ApprovalMode == nil || *accessPolicy.ApprovalMode == "" ||
+		// skip approvalMode when mode=MANUAL
+		accessPolicy.Mode != nil && *accessPolicy.Mode == model.AccessPolicyModeManual {
+		return nil
+	}
+
+	val := AccessApprovalMode(*accessPolicy.ApprovalMode)
+
+	return &val
 }
 
 func (client *Client) CreateResource(ctx context.Context, input *model.Resource) (*model.Resource, error) {
@@ -105,9 +168,10 @@ func (client *Client) CreateResource(ctx context.Context, input *model.Resource)
 		gqlNullable(input.IsBrowserShortcutEnabled, "isBrowserShortcutEnabled"),
 		gqlNullable(input.Alias, "alias"),
 		gqlNullableID(input.SecurityPolicyID, "securityPolicyId"),
-		gqlVar(NewAccessApprovalMode(input.ApprovalMode), "approvalMode"),
+		gqlVar(NewAccessPolicyInput(input.AccessPolicy), "accessPolicy"),
+		gqlVar(NewAccessApprovalMode(input.AccessPolicy), "approvalMode"),
 		gqlVar(newTagInputs(input.Tags), "tags"),
-		gqlNullable(input.UsageBasedAutolockDurationDays, "usageBasedAutolockDurationDays"),
+
 		cursor(query.CursorAccess),
 		pageLimit(client.pageLimit),
 	)
@@ -117,7 +181,11 @@ func (client *Client) CreateResource(ctx context.Context, input *model.Resource)
 		return nil, err
 	}
 
-	resource := response.Entity.ToModel()
+	resource, err := response.Entity.ToModel()
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
 	resource.GroupsAccess = input.GroupsAccess
 	resource.ServiceAccounts = input.ServiceAccounts
 	resource.IsAuthoritative = input.IsAuthoritative
@@ -130,7 +198,7 @@ func (client *Client) CreateResource(ctx context.Context, input *model.Resource)
 		resource.IsBrowserShortcutEnabled = nil
 	}
 
-	if input.SecurityPolicyID != nil && *input.SecurityPolicyID == "" {
+	if resource.SecurityPolicyID == nil && input.SecurityPolicyID != nil && *input.SecurityPolicyID == "" {
 		resource.SecurityPolicyID = input.SecurityPolicyID
 	}
 
@@ -163,14 +231,17 @@ func (client *Client) ReadResource(ctx context.Context, resourceID string) (*mod
 		return nil, err //nolint
 	}
 
-	res := response.Resource.ToModel()
+	res, err := response.Resource.ToModel()
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
 
 	setResource(res)
 
 	return res, nil
 }
 
-func (client *Client) readResourceAccessAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.AccessEdge], error) {
+func (client *Client) readResourceAccessAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.AccessEdge], error) {
 	opr := resourceResource.read().withCustomName("readResourceAccessAfter")
 
 	resourceID := string(variables["id"].(graphql.ID))
@@ -205,7 +276,7 @@ func (client *Client) ReadResources(ctx context.Context) ([]*model.Resource, err
 	return response.ToModel(), nil
 }
 
-func (client *Client) readResourcesAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.ResourceEdge], error) {
+func (client *Client) readResourcesAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.ResourceEdge], error) {
 	opr := resourceResource.read().withCustomName("readResourcesAfter")
 
 	variables[query.CursorResources] = cursor
@@ -244,7 +315,7 @@ func (client *Client) ReadFullResources(ctx context.Context) ([]*model.Resource,
 		}
 	}
 
-	return response.ToModel(), nil
+	return response.ToModel() //nolint:wrapcheck
 }
 
 func (client *Client) ReadFullResourcesByName(ctx context.Context, filter *model.ResourcesFilter) ([]*model.Resource, error) {
@@ -274,10 +345,10 @@ func (client *Client) ReadFullResourcesByName(ctx context.Context, filter *model
 		}
 	}
 
-	return response.ToModel(), nil
+	return response.ToModel() //nolint:wrapcheck
 }
 
-func (client *Client) readFullResourcesByNameAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.FullResourceEdge], error) {
+func (client *Client) readFullResourcesByNameAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.FullResourceEdge], error) {
 	opr := resourceResource.read().withCustomName("readFullResourcesByNameAfter")
 
 	variables[query.CursorResources] = cursor
@@ -290,7 +361,7 @@ func (client *Client) readFullResourcesByNameAfter(ctx context.Context, variable
 	return &response.PaginatedResource, nil
 }
 
-func (client *Client) readFullResourcesAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.FullResourceEdge], error) {
+func (client *Client) readFullResourcesAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.FullResourceEdge], error) {
 	opr := resourceResource.read().withCustomName("readFullResourcesAfter")
 
 	variables[query.CursorResources] = cursor
@@ -303,7 +374,7 @@ func (client *Client) readFullResourcesAfter(ctx context.Context, variables map[
 	return &response.PaginatedResource, nil
 }
 
-func (client *Client) readExtendedResourceAccessAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.AccessEdge], error) {
+func (client *Client) readExtendedResourceAccessAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.AccessEdge], error) {
 	opr := resourceResource.read().withCustomName("readExtendedResourceAccessAfter")
 
 	resourceID := string(variables["id"].(graphql.ID))
@@ -334,9 +405,9 @@ func (client *Client) UpdateResource(ctx context.Context, input *model.Resource)
 		gqlNullable(input.IsBrowserShortcutEnabled, "isBrowserShortcutEnabled"),
 		gqlNullable(input.Alias, "alias"),
 		gqlNullableID(input.SecurityPolicyID, "securityPolicyId"),
-		gqlVar(NewAccessApprovalMode(input.ApprovalMode), "approvalMode"),
+		gqlVar(NewAccessApprovalMode(input.AccessPolicy), "approvalMode"),
+		gqlVar(NewAccessPolicyInput(input.AccessPolicy), "accessPolicy"),
 		gqlVar(newTagInputs(input.Tags), "tags"),
-		gqlNullable(input.UsageBasedAutolockDurationDays, "usageBasedAutolockDurationDays"),
 		cursor(query.CursorAccess),
 		pageLimit(client.pageLimit),
 	)
@@ -350,7 +421,11 @@ func (client *Client) UpdateResource(ctx context.Context, input *model.Resource)
 		return nil, err //nolint
 	}
 
-	resource := response.Entity.ToModel()
+	resource, err := response.Entity.ToModel()
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
 	resource.IsAuthoritative = input.IsAuthoritative
 
 	if input.IsVisible == nil {
@@ -435,7 +510,7 @@ func (client *Client) ReadResourcesByName(ctx context.Context, filter *model.Res
 	return response.ToModel(), nil
 }
 
-func (client *Client) readResourcesByNameAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.ResourceEdge], error) {
+func (client *Client) readResourcesByNameAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.ResourceEdge], error) {
 	opr := resourceResource.read().withCustomName("readResourcesByName")
 
 	variables[query.CursorResources] = cursor
@@ -472,10 +547,10 @@ func (client *Client) RemoveResourceAccess(ctx context.Context, resourceID strin
 }
 
 type AccessInput struct {
-	PrincipalID                    string              `json:"principalId"`
-	SecurityPolicyID               *string             `json:"securityPolicyId"`
-	UsageBasedAutolockDurationDays *int64              `json:"usageBasedAutolockDurationDays"`
-	ApprovalMode                   *AccessApprovalMode `json:"approvalMode"`
+	PrincipalID      string              `json:"principalId"`
+	SecurityPolicyID *string             `json:"securityPolicyId"`
+	ApprovalMode     *AccessApprovalMode `json:"approvalMode"`
+	AccessPolicy     *AccessPolicyInput  `json:"accessPolicy"`
 }
 
 func (client *Client) AddResourceAccess(ctx context.Context, resourceID string, access []AccessInput) error {

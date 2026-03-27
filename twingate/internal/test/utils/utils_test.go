@@ -2,11 +2,13 @@ package utils
 
 import (
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/types"
+	"slices"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +39,7 @@ func TestContains(t *testing.T) {
 
 	for n, c := range cases {
 		t.Run(fmt.Sprintf("case: %d", n), func(t *testing.T) {
-			actual := utils.Contains(c.items, c.element)
+			actual := slices.Contains(c.items, c.element)
 
 			assert.Equal(t, c.expected, actual)
 		})

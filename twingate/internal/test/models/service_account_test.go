@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,11 +43,11 @@ func TestServiceAccountToTerraform(t *testing.T) {
 	cases := []struct {
 		serviceAccount model.ServiceAccount
 
-		expected interface{}
+		expected any
 	}{
 		{
 			serviceAccount: model.ServiceAccount{},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:          "",
 				attr.Name:        "",
 				attr.ResourceIDs: emptyStringSlice,
@@ -61,7 +61,7 @@ func TestServiceAccountToTerraform(t *testing.T) {
 				Resources: []string{"res-1"},
 				Keys:      []string{"key-1"},
 			},
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				attr.ID:          "service-id",
 				attr.Name:        "service-name",
 				attr.ResourceIDs: []string{"res-1"},

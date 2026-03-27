@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client/query"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client/query"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 )
 
 type StringFilter struct {
@@ -76,7 +76,7 @@ func (client *Client) ReadUsers(ctx context.Context, filter *UsersFilter) ([]*mo
 	return response.ToModel(), nil
 }
 
-func (client *Client) readUsersAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.UserEdge], error) {
+func (client *Client) readUsersAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.UserEdge], error) {
 	opr := resourceUser.read()
 
 	variables[query.CursorUsers] = cursor

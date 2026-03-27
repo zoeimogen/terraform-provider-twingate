@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/stretchr/testify/assert"
@@ -68,15 +68,14 @@ func TestConverterGroupsToTerraform(t *testing.T) {
 		},
 		{
 			input: []*model.Group{
-				{ID: "group-id", Name: "group-name", Type: model.GroupTypeManual, IsActive: true, SecurityPolicyID: "policy-id"},
+				{ID: "group-id", Name: "group-name", Type: model.GroupTypeManual, IsActive: true},
 			},
 			expected: []groupModel{
 				{
-					ID:               types.StringValue("group-id"),
-					Name:             types.StringValue("group-name"),
-					Type:             types.StringValue(model.GroupTypeManual),
-					SecurityPolicyID: types.StringValue("policy-id"),
-					IsActive:         types.BoolValue(true),
+					ID:       types.StringValue("group-id"),
+					Name:     types.StringValue("group-name"),
+					Type:     types.StringValue(model.GroupTypeManual),
+					IsActive: types.BoolValue(true),
 				},
 			},
 		},

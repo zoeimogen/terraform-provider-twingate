@@ -7,16 +7,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
-	twingateDatasource "github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/provider/datasource"
-	twingateResource "github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/provider/resource"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	twingateDatasource "github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/provider/datasource"
+	twingateResource "github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/provider/resource"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	tfattr "github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -210,7 +211,6 @@ func (t Twingate) Schema(ctx context.Context, request provider.SchemaRequest, re
 	}
 }
 
-//nolint:funlen
 func (t Twingate) Configure(ctx context.Context, request provider.ConfigureRequest, response *provider.ConfigureResponse) {
 	var config twingateProviderModel
 
@@ -269,11 +269,7 @@ func (t Twingate) Configure(ctx context.Context, request provider.ConfigureReque
 
 	response.DataSourceData = client
 	response.ResourceData = client
-
-	policy, _ := client.ReadSecurityPolicy(ctx, "", twingateResource.DefaultSecurityPolicyName)
-	if policy != nil {
-		twingateResource.DefaultSecurityPolicyID = policy.ID
-	}
+	response.EphemeralResourceData = client
 
 	twingateResource.DefaultTags = getDefaultTags(config.DefaultTags)
 }
@@ -469,6 +465,9 @@ func (t Twingate) DataSources(ctx context.Context) []func() datasource.DataSourc
 		twingateDatasource.NewResourceDatasource,
 		twingateDatasource.NewResourcesDatasource,
 		twingateDatasource.NewDNSFilteringProfileDatasource,
+		twingateDatasource.NewX509CertificateAuthorityDatasource,
+		twingateDatasource.NewSSHCertificateAuthorityDatasource,
+		twingateDatasource.NewGatewayDatasource,
 	}
 }
 
@@ -483,5 +482,16 @@ func (t Twingate) Resources(ctx context.Context) []func() resource.Resource {
 		twingateResource.NewUserResource,
 		twingateResource.NewResourceResource,
 		twingateResource.NewDNSFilteringProfile,
+		twingateResource.NewX509CertificateAuthorityResource,
+		twingateResource.NewSSHCertificateAuthorityResource,
+		twingateResource.NewGatewayResource,
+	}
+}
+
+func (t Twingate) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		func() ephemeral.EphemeralResource {
+			return twingateResource.NewEphemeralConnectorTokens()
+		},
 	}
 }

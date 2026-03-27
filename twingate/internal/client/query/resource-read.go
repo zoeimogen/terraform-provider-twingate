@@ -1,9 +1,17 @@
 package query
 
 import (
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"errors"
+	"time"
+
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 	"github.com/hasura/go-graphql-client"
+)
+
+var (
+	ErrMissingAccessGroupID          = errors.New("access group ID is missing in response")
+	ErrMissingAccessServiceAccountID = errors.New("access service account ID is missing in response")
 )
 
 const (
@@ -31,15 +39,16 @@ type Access struct {
 }
 
 type AccessEdge struct {
-	Node                           Principal
-	SecurityPolicy                 *gqlSecurityPolicy
-	UsageBasedAutolockDurationDays *int64
-	ApprovalMode                   *string
+	Node           Principal
+	SecurityPolicy *gqlSecurityPolicy
+	ApprovalMode   *string
+	AccessPolicy   *AccessPolicy
 }
 
 type Principal struct {
-	Type string `graphql:"__typename"`
-	Node `graphql:"... on Node"`
+	Type           string `graphql:"__typename"`
+	Group          Node   `graphql:"... on Group"`
+	ServiceAccount Node   `graphql:"... on ServiceAccount"`
 }
 
 type Node struct {
@@ -59,16 +68,23 @@ type ResourceNode struct {
 	RemoteNetwork struct {
 		ID graphql.ID
 	}
-	Protocols                      *Protocols
-	IsActive                       bool
-	IsVisible                      bool
-	IsBrowserShortcutEnabled       bool
-	Alias                          string
-	SecurityPolicy                 *gqlSecurityPolicy
-	ApprovalMode                   string
-	Tags                           []Tag
-	UsageBasedAutolockDurationDays *int64
+	Protocols                *Protocols
+	IsActive                 bool
+	IsVisible                bool
+	IsBrowserShortcutEnabled bool
+	Alias                    string
+	SecurityPolicy           *gqlSecurityPolicy
+	Tags                     []Tag
+	ApprovalMode             string
+	AccessPolicy             *AccessPolicy
 }
+
+type AccessPolicy struct {
+	DurationSeconds *int64
+	Mode            AccessMode
+}
+
+type AccessMode string
 
 type Protocols struct {
 	UDP       *Protocol `json:"udp"`
@@ -86,7 +102,7 @@ type PortRange struct {
 	End   int `json:"end"`
 }
 
-func (r gqlResource) ToModel() *model.Resource {
+func (r gqlResource) ToModel() (*model.Resource, error) {
 	resource := r.ResourceNode.ToModel()
 
 	for _, access := range r.Access.Edges {
@@ -97,18 +113,27 @@ func (r gqlResource) ToModel() *model.Resource {
 
 		switch access.Node.Type {
 		case AccessGroup:
+			groupID := string(access.Node.Group.ID)
+			if groupID == "" {
+				return nil, ErrMissingAccessGroupID
+			}
+
 			resource.GroupsAccess = append(resource.GroupsAccess, model.AccessGroup{
-				GroupID:            string(access.Node.ID),
-				SecurityPolicyID:   securityPolicyID,
-				UsageBasedDuration: access.UsageBasedAutolockDurationDays,
-				ApprovalMode:       access.ApprovalMode,
+				GroupID:          groupID,
+				SecurityPolicyID: securityPolicyID,
+				AccessPolicy:     accessPolicyToModel(access.AccessPolicy, access.ApprovalMode),
 			})
 		case AccessServiceAccount:
-			resource.ServiceAccounts = append(resource.ServiceAccounts, string(access.Node.ID))
+			serviceAccountID := string(access.Node.ServiceAccount.ID)
+			if serviceAccountID == "" {
+				return nil, ErrMissingAccessServiceAccountID
+			}
+
+			resource.ServiceAccounts = append(resource.ServiceAccounts, serviceAccountID)
 		}
 	}
 
-	return resource
+	return resource, nil
 }
 
 func (r ResourceNode) ToModel() *model.Resource {
@@ -118,19 +143,40 @@ func (r ResourceNode) ToModel() *model.Resource {
 	}
 
 	return &model.Resource{
-		ID:                             string(r.ID),
-		Name:                           r.Name,
-		Address:                        r.Address.Value,
-		RemoteNetworkID:                string(r.RemoteNetwork.ID),
-		Protocols:                      protocolsToModel(r.Protocols),
-		IsActive:                       r.IsActive,
-		IsVisible:                      &r.IsVisible,
-		IsBrowserShortcutEnabled:       &r.IsBrowserShortcutEnabled,
-		Alias:                          optionalString(r.Alias),
-		SecurityPolicyID:               optionalString(securityPolicy),
-		ApprovalMode:                   r.ApprovalMode,
-		Tags:                           tagsToModel(r.Tags),
-		UsageBasedAutolockDurationDays: r.UsageBasedAutolockDurationDays,
+		ID:                       string(r.ID),
+		Name:                     r.Name,
+		Address:                  r.Address.Value,
+		RemoteNetworkID:          string(r.RemoteNetwork.ID),
+		Protocols:                protocolsToModel(r.Protocols),
+		IsActive:                 r.IsActive,
+		IsVisible:                &r.IsVisible,
+		IsBrowserShortcutEnabled: &r.IsBrowserShortcutEnabled,
+		Alias:                    optionalString(r.Alias),
+		SecurityPolicyID:         optionalString(securityPolicy),
+		Tags:                     tagsToModel(r.Tags),
+		AccessPolicy:             accessPolicyToModel(r.AccessPolicy, &r.ApprovalMode),
+	}
+}
+
+func accessPolicyToModel(accessPolicy *AccessPolicy, approvalMode *string) *model.AccessPolicy {
+	if accessPolicy == nil {
+		return nil
+	}
+
+	var duration *string
+
+	if accessPolicy.DurationSeconds != nil {
+		val := time.Duration(*accessPolicy.DurationSeconds) * time.Second
+		raw := utils.FormatDurationWithDays(val)
+		duration = &raw
+	}
+
+	mode := string(accessPolicy.Mode)
+
+	return &model.AccessPolicy{
+		Mode:         &mode,
+		Duration:     duration,
+		ApprovalMode: approvalMode,
 	}
 }
 

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/utils"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/utils"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/client/query"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/client/query"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/model"
 )
 
 func (client *Client) CreateGroup(ctx context.Context, input *model.Group) (*model.Group, error) {
@@ -21,7 +21,6 @@ func (client *Client) CreateGroup(ctx context.Context, input *model.Group) (*mod
 	variables := newVars(
 		gqlVar(input.Name, "name"),
 		gqlIDs(input.Users, "userIds"),
-		gqlNullableID(input.SecurityPolicyID, "securityPolicyId"),
 		cursor(query.CursorUsers),
 		pageLimit(client.pageLimit),
 	)
@@ -125,7 +124,7 @@ func (client *Client) ReadGroups(ctx context.Context, filter *model.GroupsFilter
 	return response.ToModel(), nil
 }
 
-func (client *Client) readGroupsAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.GroupEdge], error) {
+func (client *Client) readGroupsAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.GroupEdge], error) {
 	opr := resourceGroup.read().withCustomName("readGroupsAfter")
 
 	variables[query.CursorGroups] = cursor
@@ -215,7 +214,6 @@ func (client *Client) UpdateGroup(ctx context.Context, input *model.Group) (*mod
 		gqlID(input.ID),
 		gqlVar(input.Name, "name"),
 		gqlIDs(input.Users, "addedUserIds"),
-		gqlNullableID(input.SecurityPolicyID, "securityPolicyId"),
 		cursor(query.CursorUsers),
 		pageLimit(client.pageLimit),
 	)
@@ -278,7 +276,7 @@ func (client *Client) DeleteGroupUsers(ctx context.Context, groupID string, user
 	return client.mutate(ctx, &response, variables, opr, attr{id: groupID})
 }
 
-func (client *Client) readGroupUsersAfter(ctx context.Context, variables map[string]interface{}, cursor string) (*query.PaginatedResource[*query.UserEdge], error) {
+func (client *Client) readGroupUsersAfter(ctx context.Context, variables map[string]any, cursor string) (*query.PaginatedResource[*query.UserEdge], error) {
 	opr := resourceGroup.read().withCustomName("readGroupUsersAfter")
 
 	variables[query.CursorUsers] = cursor

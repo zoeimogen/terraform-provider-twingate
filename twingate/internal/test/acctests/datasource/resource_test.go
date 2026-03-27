@@ -3,13 +3,12 @@ package datasource
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/model"
 	"regexp"
 	"testing"
 
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/attr"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/test"
-	"github.com/Twingate/terraform-provider-twingate/v3/twingate/internal/test/acctests"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/attr"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/test"
+	"github.com/Twingate/terraform-provider-twingate/v4/twingate/internal/test/acctests"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
@@ -29,9 +28,7 @@ func TestAccDatasourceTwingateResource_basic(t *testing.T) {
 				Config: testDatasourceTwingateResource(networkName, resourceName),
 				Check: acctests.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("data.twingate_resource.out_dr1", attr.Name, resourceName),
-					resource.TestCheckResourceAttr("data.twingate_resource.out_dr1", attr.ApprovalMode, model.ApprovalModeManual),
 					resource.TestCheckResourceAttr("data.twingate_resource.out_dr1", attr.PathAttr(attr.Tags, "owner"), "example_owner"),
-					resource.TestCheckResourceAttr("data.twingate_resource.out_dr1", attr.UsageBasedAutolockDurationDays, "10"),
 				),
 			},
 		},
@@ -63,8 +60,6 @@ func testDatasourceTwingateResource(networkName, resourceName string) string {
 	  tags = {
 	    owner = "example_owner"
 	  }
-
-	  usage_based_autolock_duration_days = 10
 	}
 
 	data "twingate_resource" "out_dr1" {
